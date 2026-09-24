@@ -3,8 +3,12 @@ import pygame
 from modelos.ponto import Ponto
 from modelos.quadrilatero import Quadrilatero
 from modelos.sistema_coordenadas import SistemaCoordenadas
+
 from algoritmos.rasterizador import Rasterizador
+
 from modelos.validacao import quadrilatero_valido
+
+from transformacoes.transformacoes import Transformacoes
 
 
 pygame.init()
@@ -17,12 +21,17 @@ pygame.init()
 LARGURA = 1000
 ALTURA = 600
 
-LARGURA_MENU = 250
+LARGURA_MENU = 280
 
 ESCALA = 2
 
-tela = pygame.display.set_mode((LARGURA, ALTURA))
-pygame.display.set_caption("Rasterizador 2D")
+tela = pygame.display.set_mode(
+    (LARGURA, ALTURA)
+)
+
+pygame.display.set_caption(
+    "Rasterizador 2D"
+)
 
 
 # ============================================================
@@ -31,21 +40,34 @@ pygame.display.set_caption("Rasterizador 2D")
 
 BRANCO = (255, 255, 255)
 PRETO = (0, 0, 0)
+
 CINZA = (230, 230, 230)
 CINZA_ESCURO = (80, 80, 80)
+
 AZUL = (50, 150, 255)
 AZUL_ESCURO = (30, 100, 180)
+
 VERMELHO = (220, 50, 50)
-VERDE = (50, 170, 80)
 
 
 # ============================================================
 # FONTES
 # ============================================================
 
-fonte_titulo = pygame.font.Font(None, 30)
-fonte = pygame.font.Font(None, 24)
-fonte_pequena = pygame.font.Font(None, 20)
+fonte_titulo = pygame.font.Font(
+    None,
+    30
+)
+
+fonte = pygame.font.Font(
+    None,
+    24
+)
+
+fonte_pequena = pygame.font.Font(
+    None,
+    20
+)
 
 
 # ============================================================
@@ -58,7 +80,9 @@ sistema = SistemaCoordenadas(
     ESCALA
 )
 
-rasterizador = Rasterizador(sistema)
+rasterizador = Rasterizador(
+    sistema
+)
 
 
 # ============================================================
@@ -66,34 +90,86 @@ rasterizador = Rasterizador(sistema)
 # ============================================================
 
 pontos_selecionados = []
+
+# Quadrilátero original
+quadrilatero_original = None
+
+# Quadrilátero atualmente exibido
 quadrilatero = None
 
 
-# Campos de texto
+# ============================================================
+# CAMPOS DE TEXTO
+# ============================================================
+
 campo_x = ""
 campo_y = ""
+
+campo_sx = "1"
+campo_sy = "1"
 
 campo_ativo = None
 
 
 # ============================================================
-# ÁREAS DOS BOTÕES E CAMPOS
+# ÁREAS DOS COMPONENTES
 # ============================================================
 
+# Reset
+
 botao_resetar = pygame.Rect(
-    20, 60, 210, 40
+    20,
+    60,
+    240,
+    40
 )
 
+
+# Inserção de pontos
+
 campo_x_rect = pygame.Rect(
-    20, 150, 90, 35
+    20,
+    150,
+    105,
+    35
 )
 
 campo_y_rect = pygame.Rect(
-    130, 150, 100, 35
+    140,
+    150,
+    120,
+    35
 )
 
 botao_adicionar = pygame.Rect(
-    20, 200, 210, 40
+    20,
+    200,
+    240,
+    40
+)
+
+
+# Escala
+
+campo_sx_rect = pygame.Rect(
+    20,
+    525,
+    105,
+    35
+)
+
+campo_sy_rect = pygame.Rect(
+    140,
+    525,
+    120,
+    35
+)
+
+botao_escala = pygame.Rect(
+    20,
+    570,
+    240,
+    40
 )
 
 
@@ -103,15 +179,18 @@ botao_adicionar = pygame.Rect(
 
 def resetar():
     """
-    Limpa todos os pontos e o quadrilátero.
+    Limpa os pontos e os quadriláteros.
     """
-    global pontos_selecionados
+
+    global quadrilatero_original
     global quadrilatero
+
     global campo_x
     global campo_y
 
     pontos_selecionados.clear()
 
+    quadrilatero_original = None
     quadrilatero = None
 
     campo_x = ""
@@ -120,47 +199,110 @@ def resetar():
 
 def adicionar_ponto(x, y):
     """
-    Adiciona um ponto à lista.
+    Adiciona um ponto.
 
-    Quando chegar a quatro pontos,
-    tenta criar o quadrilátero.
+    Ao chegar em quatro pontos,
+    cria o quadrilátero caso seja válido.
     """
 
+    global quadrilatero_original
     global quadrilatero
 
     if len(pontos_selecionados) >= 4:
         return
 
-    ponto = Ponto(x, y)
+    ponto = Ponto(
+        x,
+        y
+    )
 
-    pontos_selecionados.append(ponto)
+    pontos_selecionados.append(
+        ponto
+    )
 
     print(
         f"P{len(pontos_selecionados)}: "
         f"({x}, {y})"
     )
 
-    # Quando tivermos 4 pontos
     if len(pontos_selecionados) == 4:
 
-        if quadrilatero_valido(pontos_selecionados):
+        if quadrilatero_valido(
+            pontos_selecionados
+        ):
+
+            quadrilatero_original = Quadrilatero(
+                pontos_selecionados.copy()
+            )
 
             quadrilatero = Quadrilatero(
                 pontos_selecionados.copy()
             )
 
-            print("Quadrilátero válido criado!")
+            print(
+                "Quadrilátero válido criado!"
+            )
 
         else:
 
-            print("Quadrilátero inválido!")
+            print(
+                "Quadrilátero inválido!"
+            )
 
             pontos_selecionados.clear()
 
 
-def desenhar_texto(texto, x, y, fonte_usada, cor=PRETO):
+def aplicar_escala():
     """
-    Facilita o desenho de textos na tela.
+    Aplica a escala usando os fatores SX e SY.
+
+    A transformação sempre utiliza
+    o quadrilátero original.
+    """
+
+    global quadrilatero
+
+    if quadrilatero_original is None:
+
+        print(
+            "Nenhum quadrilátero criado."
+        )
+
+        return
+
+    try:
+
+        sx = float(campo_sx)
+        sy = float(campo_sy)
+
+        quadrilatero = Transformacoes.escalar(
+            quadrilatero_original,
+            sx,
+            sy
+        )
+
+        print(
+            f"Escala aplicada: "
+            f"sx={sx}, sy={sy}"
+        )
+
+    except ValueError:
+
+        print(
+            "Digite valores numéricos "
+            "para SX e SY."
+        )
+
+
+def desenhar_texto(
+    texto,
+    x,
+    y,
+    fonte_usada,
+    cor=PRETO
+):
+    """
+    Desenha um texto na tela.
     """
 
     superficie = fonte_usada.render(
@@ -175,9 +317,13 @@ def desenhar_texto(texto, x, y, fonte_usada, cor=PRETO):
     )
 
 
-def desenhar_botao(rect, texto, cor):
+def desenhar_botao(
+    rect,
+    texto,
+    cor
+):
     """
-    Desenha um botão simples.
+    Desenha um botão.
     """
 
     pygame.draw.rect(
@@ -187,28 +333,36 @@ def desenhar_botao(rect, texto, cor):
         border_radius=6
     )
 
-    texto_superficie = fonte.render(
+    superficie = fonte.render(
         texto,
         True,
         BRANCO
     )
 
-    texto_rect = texto_superficie.get_rect(
+    texto_rect = superficie.get_rect(
         center=rect.center
     )
 
     tela.blit(
-        texto_superficie,
+        superficie,
         texto_rect
     )
 
 
-def desenhar_campo(rect, texto, ativo=False):
+def desenhar_campo(
+    rect,
+    texto,
+    ativo=False
+):
     """
-    Desenha um campo de entrada de texto.
+    Desenha um campo de entrada.
     """
 
-    cor_borda = AZUL if ativo else CINZA_ESCURO
+    cor_borda = (
+        AZUL
+        if ativo
+        else CINZA_ESCURO
+    )
 
     pygame.draw.rect(
         tela,
@@ -236,14 +390,22 @@ def desenhar_menu():
     Desenha o menu lateral.
     """
 
-    # Fundo do menu
+    # ========================================================
+    # FUNDO
+    # ========================================================
+
     pygame.draw.rect(
         tela,
         CINZA,
-        (0, 0, LARGURA_MENU, ALTURA)
+        (
+            0,
+            0,
+            LARGURA_MENU,
+            ALTURA
+        )
     )
 
-    # Separação entre menu e área de desenho
+    # Separador do menu
     pygame.draw.line(
         tela,
         CINZA_ESCURO,
@@ -252,7 +414,11 @@ def desenhar_menu():
         2
     )
 
-    # Título
+
+    # ========================================================
+    # TÍTULO
+    # ========================================================
+
     desenhar_texto(
         "MENU DE AÇÕES",
         20,
@@ -260,16 +426,21 @@ def desenhar_menu():
         fonte_titulo
     )
 
-    # Botão resetar
+
+    # ========================================================
+    # RESET
+    # ========================================================
+
     desenhar_botao(
         botao_resetar,
         "RESETAR",
         VERMELHO
     )
 
-    # -------------------------
-    # Inserção de pontos
-    # -------------------------
+
+    # ========================================================
+    # INSERÇÃO DE PONTOS
+    # ========================================================
 
     desenhar_texto(
         "INSERIR PONTO",
@@ -279,16 +450,16 @@ def desenhar_menu():
     )
 
     desenhar_texto(
-        "X:",
+        "X",
         20,
-        160,
+        130,
         fonte_pequena
     )
 
     desenhar_texto(
-        "Y:",
+        "Y",
+        140,
         130,
-        160,
         fonte_pequena
     )
 
@@ -310,9 +481,10 @@ def desenhar_menu():
         AZUL_ESCURO
     )
 
-    # -------------------------
-    # Informações dos pontos
-    # -------------------------
+
+    # ========================================================
+    # PONTOS
+    # ========================================================
 
     desenhar_texto(
         "PONTOS:",
@@ -323,10 +495,13 @@ def desenhar_menu():
 
     y_texto = 305
 
-    for i, ponto in enumerate(pontos_selecionados):
+    for i, ponto in enumerate(
+        pontos_selecionados
+    ):
 
         desenhar_texto(
-            f"P{i + 1}: ({ponto.x:.0f}, {ponto.y:.0f})",
+            f"P{i + 1}: "
+            f"({ponto.x:.0f}, {ponto.y:.0f})",
             20,
             y_texto,
             fonte_pequena
@@ -334,47 +509,66 @@ def desenhar_menu():
 
         y_texto += 25
 
-    # -------------------------
-    # Transformações
-    # -------------------------
+
+    # ========================================================
+    # ESCALA
+    # ========================================================
 
     desenhar_texto(
-        "TRANSFORMAÇÕES",
+        "ESCALA",
         20,
         425,
         fonte_titulo
     )
 
     desenhar_texto(
-        "Escala: será adicionada",
+        "SX",
         20,
-        460,
-        fonte_pequena,
-        CINZA_ESCURO
+        465,
+        fonte_pequena
     )
 
     desenhar_texto(
-        "Rotação: será adicionada",
-        20,
-        485,
-        fonte_pequena,
-        CINZA_ESCURO
+        "SY",
+        140,
+        465,
+        fonte_pequena
+    )
+
+    desenhar_campo(
+        campo_sx_rect,
+        campo_sx,
+        campo_ativo == "sx"
+    )
+
+    desenhar_campo(
+        campo_sy_rect,
+        campo_sy,
+        campo_ativo == "sy"
+    )
+
+    desenhar_botao(
+        botao_escala,
+        "APLICAR ESCALA",
+        AZUL_ESCURO
     )
 
 
 def desenhar_pontos_selecionados():
     """
-    Desenha os pontos que ainda estão sendo selecionados.
+    Desenha os pontos inseridos pelo usuário.
     """
 
-    for i, ponto in enumerate(pontos_selecionados):
+    for i, ponto in enumerate(
+        pontos_selecionados
+    ):
 
         x, y = sistema.para_tela(
             ponto.x,
             ponto.y
         )
 
-        # Só desenha se estiver na área de rasterização
+        # Não desenhar dentro do menu
         if x >= LARGURA_MENU:
 
             pygame.draw.circle(
@@ -403,54 +597,71 @@ while rodando:
 
     for evento in pygame.event.get():
 
-        # ----------------------------------------------------
+        # ====================================================
         # FECHAR
-        # ----------------------------------------------------
+        # ====================================================
 
         if evento.type == pygame.QUIT:
+
             rodando = False
 
 
-        # ----------------------------------------------------
+        # ====================================================
         # CLIQUE DO MOUSE
-        # ----------------------------------------------------
+        # ====================================================
 
         if evento.type == pygame.MOUSEBUTTONDOWN:
 
             x_mouse, y_mouse = evento.pos
 
 
-            # -----------------------------------------------
+            # =================================================
             # MENU
-            # -----------------------------------------------
+            # =================================================
 
             if x_mouse < LARGURA_MENU:
 
-                # Resetar
+
+                # ---------------------------------------------
+                # RESET
+                # ---------------------------------------------
+
                 if botao_resetar.collidepoint(
                     x_mouse,
                     y_mouse
                 ):
+
                     resetar()
 
 
-                # Campo X
+                # ---------------------------------------------
+                # CAMPO X
+                # ---------------------------------------------
+
                 elif campo_x_rect.collidepoint(
                     x_mouse,
                     y_mouse
                 ):
+
                     campo_ativo = "x"
 
 
-                # Campo Y
+                # ---------------------------------------------
+                # CAMPO Y
+                # ---------------------------------------------
+
                 elif campo_y_rect.collidepoint(
                     x_mouse,
                     y_mouse
                 ):
+
                     campo_ativo = "y"
 
 
-                # Adicionar ponto
+                # ---------------------------------------------
+                # ADICIONAR PONTO
+                # ---------------------------------------------
+
                 elif botao_adicionar.collidepoint(
                     x_mouse,
                     y_mouse
@@ -458,25 +669,71 @@ while rodando:
 
                     try:
 
-                        x = float(campo_x)
-                        y = float(campo_y)
+                        x = float(
+                            campo_x
+                        )
 
-                        adicionar_ponto(x, y)
+                        y = float(
+                            campo_y
+                        )
+
+                        adicionar_ponto(
+                            x,
+                            y
+                        )
 
                         campo_x = ""
                         campo_y = ""
+
                         campo_ativo = None
 
                     except ValueError:
 
                         print(
-                            "Digite valores numéricos."
+                            "Digite valores "
+                            "numéricos."
                         )
 
 
-            # -----------------------------------------------
+                # ---------------------------------------------
+                # CAMPO SX
+                # ---------------------------------------------
+
+                elif campo_sx_rect.collidepoint(
+                    x_mouse,
+                    y_mouse
+                ):
+
+                    campo_ativo = "sx"
+
+
+                # ---------------------------------------------
+                # CAMPO SY
+                # ---------------------------------------------
+
+                elif campo_sy_rect.collidepoint(
+                    x_mouse,
+                    y_mouse
+                ):
+
+                    campo_ativo = "sy"
+
+
+                # ---------------------------------------------
+                # APLICAR ESCALA
+                # ---------------------------------------------
+
+                elif botao_escala.collidepoint(
+                    x_mouse,
+                    y_mouse
+                ):
+
+                    aplicar_escala()
+
+
+            # =================================================
             # ÁREA DE RASTERIZAÇÃO
-            # -----------------------------------------------
+            # =================================================
 
             else:
 
@@ -487,16 +744,23 @@ while rodando:
                         y_mouse
                     )
 
-                    adicionar_ponto(x, y)
+                    adicionar_ponto(
+                        x,
+                        y
+                    )
 
 
-        # ----------------------------------------------------
+        # ====================================================
         # TECLADO
-        # ----------------------------------------------------
+        # ====================================================
 
         if evento.type == pygame.KEYDOWN:
 
-            # Campo X
+
+            # =================================================
+            # CAMPO X
+            # =================================================
+
             if campo_ativo == "x":
 
                 if evento.key == pygame.K_BACKSPACE:
@@ -507,14 +771,18 @@ while rodando:
 
                     campo_ativo = "y"
 
-                else:
+                elif (
+                    evento.unicode.isdigit()
+                    or evento.unicode in ".-"
+                ):
 
-                    if evento.unicode.isdigit() or evento.unicode in ".-":
-
-                        campo_x += evento.unicode
+                    campo_x += evento.unicode
 
 
-            # Campo Y
+            # =================================================
+            # CAMPO Y
+            # =================================================
+
             elif campo_ativo == "y":
 
                 if evento.key == pygame.K_BACKSPACE:
@@ -525,11 +793,56 @@ while rodando:
 
                     campo_ativo = None
 
-                else:
+                elif (
+                    evento.unicode.isdigit()
+                    or evento.unicode in ".-"
+                ):
 
-                    if evento.unicode.isdigit() or evento.unicode in ".-":
+                    campo_y += evento.unicode
 
-                        campo_y += evento.unicode
+
+            # =================================================
+            # CAMPO SX
+            # =================================================
+
+            elif campo_ativo == "sx":
+
+                if evento.key == pygame.K_BACKSPACE:
+
+                    campo_sx = campo_sx[:-1]
+
+                elif evento.key == pygame.K_RETURN:
+
+                    campo_ativo = None
+
+                elif (
+                    evento.unicode.isdigit()
+                    or evento.unicode == "."
+                ):
+
+                    campo_sx += evento.unicode
+
+
+            # =================================================
+            # CAMPO SY
+            # =================================================
+
+            elif campo_ativo == "sy":
+
+                if evento.key == pygame.K_BACKSPACE:
+
+                    campo_sy = campo_sy[:-1]
+
+                elif evento.key == pygame.K_RETURN:
+
+                    campo_ativo = None
+
+                elif (
+                    evento.unicode.isdigit()
+                    or evento.unicode == "."
+                ):
+
+                    campo_sy += evento.unicode
 
 
     # ========================================================
@@ -538,10 +851,8 @@ while rodando:
 
     tela.fill(BRANCO)
 
-    # Menu
     desenhar_menu()
 
-    # Pontos selecionados
     desenhar_pontos_selecionados()
 
 
@@ -565,6 +876,10 @@ while rodando:
             PRETO
         )
 
+
+    # ========================================================
+    # ATUALIZA A TELA
+    # ========================================================
 
     pygame.display.flip()
 
