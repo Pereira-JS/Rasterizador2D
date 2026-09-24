@@ -53,18 +53,23 @@ while rodando:
         if evento.type == pygame.QUIT:
             rodando = False
 
-        # Clique esquerdo
+        if evento.type == pygame.KEYDOWN:
+
+            if evento.key == pygame.K_r:
+
+                pontos_selecionados.clear()
+                quadrilatero = None
+
+                print("Tela resetada.")
+
         if evento.type == pygame.MOUSEBUTTONDOWN:
 
             if evento.button == 1:
 
-                # Só permite selecionar 4 pontos
                 if len(pontos_selecionados) < 4:
 
                     x, y = evento.pos
 
-                    # Converte pixel da tela
-                    # para coordenada do sistema
                     x, y = sistema.para_cartesiana(
                         x,
                         y
@@ -79,8 +84,6 @@ while rodando:
                         f"({x}, {y})"
                     )
 
-                    # Quando tiver 4 pontos,
-                    # cria o quadrilátero
                     if len(pontos_selecionados) == 4:
 
                         quadrilatero = Quadrilatero(
