@@ -6,7 +6,7 @@ from modelos.sistema_coordenadas import SistemaCoordenadas
 
 from algoritmos.rasterizador import Rasterizador
 
-from modelos.validacao import quadrilatero_valido
+from modelos.validacao import quadrilatero_degenerado
 
 from transformacoes.transformacoes import Transformacoes
 
@@ -19,7 +19,7 @@ pygame.init()
 # ============================================================
 
 LARGURA = 1000
-ALTURA = 600
+ALTURA = 860
 
 LARGURA_MENU = 280
 
@@ -49,6 +49,15 @@ AZUL_ESCURO = (30, 100, 180)
 
 VERMELHO = (220, 50, 50)
 
+LARANJA = (240, 140, 30)
+VERDE_ESCURO = (40, 130, 90)
+
+# Opacidade do segundo polígono (transformado): 75%
+OPACIDADE_TRANSFORMADO = round(0.75 * 255)
+
+CINZA_GRADE = (225, 225, 225)
+CINZA_EIXO = (140, 140, 140)
+
 
 # ============================================================
 # FONTES
@@ -77,7 +86,8 @@ fonte_pequena = pygame.font.Font(
 sistema = SistemaCoordenadas(
     LARGURA,
     ALTURA,
-    ESCALA
+    ESCALA,
+    offset_x=LARGURA_MENU
 )
 
 rasterizador = Rasterizador(
@@ -108,7 +118,21 @@ campo_y = ""
 campo_sx = "1"
 campo_sy = "1"
 
+campo_angulo = "0"
+
 campo_ativo = None
+
+# Pivô usado tanto pela escala quanto pela rotação
+pivot_selecionado = "origem"
+
+# Mensagem de erro/validação exibida no menu (ex.: quadrilátero
+# inválido ao inserir o 4º ponto, ou valores numéricos inválidos)
+mensagem_erro = ""
+
+# Indica se alguma transformação (escala ou rotação) já foi
+# aplicada sobre o quadrilátero original - usado para saber se
+# o polígono transformado deve ser desenhado junto do original
+houve_transformacao = False
 
 
 # ============================================================
@@ -149,25 +173,52 @@ botao_adicionar = pygame.Rect(
 )
 
 
+# Pivô da transformação (origem ou centroide)
+
+botao_pivot_origem = pygame.Rect(
+    20,
+    465,
+    115,
+    35
+)
+
+botao_pivot_centroide = pygame.Rect(
+    145,
+    465,
+    115,
+    35
+)
+
+
 # Escala
 
 campo_sx_rect = pygame.Rect(
     20,
-    525,
+    580,
     105,
     35
 )
 
 campo_sy_rect = pygame.Rect(
     140,
-    525,
+    580,
     120,
     35
 )
 
-botao_escala = pygame.Rect(
+
+# Rotação
+
+campo_angulo_rect = pygame.Rect(
     20,
-    570,
+    700,
+    240,
+    35
+)
+
+botao_transformar = pygame.Rect(
+    20,
+    745,
     240,
     40
 )
@@ -188,6 +239,9 @@ def resetar():
     global campo_x
     global campo_y
 
+    global mensagem_erro
+    global houve_transformacao
+
     pontos_selecionados.clear()
 
     quadrilatero_original = None
@@ -195,6 +249,9 @@ def resetar():
 
     campo_x = ""
     campo_y = ""
+
+    mensagem_erro = ""
+    houve_transformacao = False
 
 
 def adicionar_ponto(x, y):
@@ -207,6 +264,8 @@ def adicionar_ponto(x, y):
 
     global quadrilatero_original
     global quadrilatero
+    global mensagem_erro
+    global houve_transformacao
 
     if len(pontos_selecionados) >= 4:
         return
@@ -227,40 +286,69 @@ def adicionar_ponto(x, y):
 
     if len(pontos_selecionados) == 4:
 
-        if quadrilatero_valido(
-            pontos_selecionados
-        ):
+        # Um quadrilátero inválido (pontos coincidentes, três
+        # vértices consecutivos alinhados, ou arestas opostas que
+        # se cruzam) NÃO pode ser criado. Rejeita apenas o último
+        # ponto informado, para que o usuário tente novamente sem
+        # perder P1, P2 e P3.
 
-            quadrilatero_original = Quadrilatero(
-                pontos_selecionados.copy()
-            )
+        if quadrilatero_degenerado(pontos_selecionados):
 
-            quadrilatero = Quadrilatero(
-                pontos_selecionados.copy()
+            pontos_selecionados.pop()
+
+            mensagem_erro = (
+                "Ponto inválido (pontos coincidentes, "
+                "alinhados ou arestas cruzadas). "
+                "Informe o 4º ponto novamente."
             )
 
             print(
-                "Quadrilátero válido criado!"
+                "Quadrilátero inválido - ponto rejeitado."
             )
 
-        else:
+            return
 
-            print(
-                "Quadrilátero inválido!"
-            )
+        mensagem_erro = ""
+        houve_transformacao = False
 
-            pontos_selecionados.clear()
+        quadrilatero_original = Quadrilatero(
+            pontos_selecionados.copy()
+        )
+
+        quadrilatero = Quadrilatero(
+            pontos_selecionados.copy()
+        )
+
+        print(
+            "Quadrilátero válido criado!"
+        )
 
 
-def aplicar_escala():
+def selecionar_pivot(pivot):
     """
-    Aplica a escala usando os fatores SX e SY.
+    Define o pivô (origem ou centroide) usado tanto pela
+    escala quanto pela rotação.
+    """
 
-    A transformação sempre utiliza
-    o quadrilátero original.
+    global pivot_selecionado
+
+    pivot_selecionado = pivot
+
+    print(
+        f"Pivô selecionado: {pivot}"
+    )
+
+
+def aplicar_transformacao():
+    """
+    Aplica escala E rotação ao mesmo tempo, num único passo,
+    sempre a partir do quadrilátero ORIGINAL: primeiro escala
+    (SX, SY) e depois rotaciona o resultado (ÂNGULO), usando o
+    pivô selecionado.
     """
 
     global quadrilatero
+    global houve_transformacao
 
     if quadrilatero_original is None:
 
@@ -274,24 +362,38 @@ def aplicar_escala():
 
         sx = float(campo_sx)
         sy = float(campo_sy)
-
-        quadrilatero = Transformacoes.escalar(
-            quadrilatero_original,
-            sx,
-            sy
-        )
-
-        print(
-            f"Escala aplicada: "
-            f"sx={sx}, sy={sy}"
-        )
+        angulo = float(campo_angulo)
 
     except ValueError:
 
         print(
             "Digite valores numéricos "
-            "para SX e SY."
+            "para SX, SY e ângulo."
         )
+
+        return
+
+    escalado = Transformacoes.escalar(
+        quadrilatero_original,
+        sx,
+        sy,
+        pivot=pivot_selecionado
+    )
+
+    quadrilatero = Transformacoes.rotacionar(
+        escalado,
+        angulo,
+        pivot=pivot_selecionado
+    )
+
+    houve_transformacao = True
+
+    print(
+        f"Transformação aplicada: "
+        f"sx={sx}, sy={sy}, "
+        f"ângulo={angulo}°, "
+        f"pivô={pivot_selecionado}"
+    )
 
 
 def desenhar_texto(
@@ -509,6 +611,39 @@ def desenhar_menu():
 
         y_texto += 25
 
+    if mensagem_erro:
+
+        desenhar_texto(
+            "Ponto inválido, tente de novo",
+            20,
+            405,
+            fonte_pequena,
+            VERMELHO
+        )
+
+    # ========================================================
+    # PIVÔ DA TRANSFORMAÇÃO
+    # ========================================================
+
+    desenhar_texto(
+        "PIVÔ (ESCALA E ROTAÇÃO)",
+        20,
+        425,
+        fonte_titulo
+    )
+
+    desenhar_botao(
+        botao_pivot_origem,
+        "ORIGEM",
+        AZUL_ESCURO if pivot_selecionado == "origem" else CINZA_ESCURO
+    )
+
+    desenhar_botao(
+        botao_pivot_centroide,
+        "CENTROIDE",
+        AZUL_ESCURO if pivot_selecionado == "centroide" else CINZA_ESCURO
+    )
+
 
     # ========================================================
     # ESCALA
@@ -517,21 +652,21 @@ def desenhar_menu():
     desenhar_texto(
         "ESCALA",
         20,
-        425,
+        520,
         fonte_titulo
     )
 
     desenhar_texto(
         "SX",
         20,
-        465,
+        560,
         fonte_pequena
     )
 
     desenhar_texto(
         "SY",
         140,
-        465,
+        560,
         fonte_pequena
     )
 
@@ -547,10 +682,111 @@ def desenhar_menu():
         campo_ativo == "sy"
     )
 
+
+    # ========================================================
+    # ROTAÇÃO
+    # ========================================================
+
+    desenhar_texto(
+        "ROTAÇÃO",
+        20,
+        640,
+        fonte_titulo
+    )
+
+    desenhar_texto(
+        "ÂNGULO (GRAUS)",
+        20,
+        680,
+        fonte_pequena
+    )
+
+    desenhar_campo(
+        campo_angulo_rect,
+        campo_angulo,
+        campo_ativo == "angulo"
+    )
+
     desenhar_botao(
-        botao_escala,
-        "APLICAR ESCALA",
+        botao_transformar,
+        "TRANSFORMAR",
         AZUL_ESCURO
+    )
+
+
+def desenhar_plano_cartesiano():
+    """
+    Desenha um plano cartesiano (grade + eixos + coordenadas)
+    como fundo da área de desenho, sem invadir o menu lateral.
+    """
+
+    espacamento = 50  # distância em pixels de tela entre linhas
+
+    # ---- Linhas verticais (valores de X) ----
+    x = LARGURA_MENU
+
+    while x <= LARGURA:
+
+        no_eixo = (x == LARGURA_MENU)
+
+        pygame.draw.line(
+            tela,
+            CINZA_EIXO if no_eixo else CINZA_GRADE,
+            (x, 0),
+            (x, ALTURA),
+            2 if no_eixo else 1
+        )
+
+        if not no_eixo and (x - LARGURA_MENU) % 100 == 0:
+
+            valor_x, _ = sistema.para_cartesiana(x, 0)
+
+            desenhar_texto(
+                f"{valor_x:.0f}",
+                x + 2,
+                2,
+                fonte_pequena,
+                CINZA_EIXO
+            )
+
+        x += espacamento
+
+    # ---- Linhas horizontais (valores de Y) ----
+    y = 0
+
+    while y <= ALTURA:
+
+        no_eixo = (y == 0)
+
+        pygame.draw.line(
+            tela,
+            CINZA_EIXO if no_eixo else CINZA_GRADE,
+            (LARGURA_MENU, y),
+            (LARGURA, y),
+            2 if no_eixo else 1
+        )
+
+        if not no_eixo and y % 100 == 0:
+
+            _, valor_y = sistema.para_cartesiana(LARGURA_MENU, y)
+
+            desenhar_texto(
+                f"{valor_y:.0f}",
+                LARGURA_MENU + 4,
+                y + 2,
+                fonte_pequena,
+                CINZA_EIXO
+            )
+
+        y += espacamento
+
+    # ---- Origem ----
+    desenhar_texto(
+        "0",
+        LARGURA_MENU + 4,
+        4,
+        fonte_pequena,
+        CINZA_EIXO
     )
 
 
@@ -585,6 +821,78 @@ def desenhar_pontos_selecionados():
                 fonte_pequena,
                 VERMELHO
             )
+
+
+def desenhar_vertices_quadrilatero(quad, cor, com_apostrofo=False):
+    """
+    Desenha um pequeno marcador e o rótulo (Pn ou Pn') em cada
+    vértice do quadrilátero informado, sem invadir o menu lateral.
+    """
+
+    for i, ponto in enumerate(quad.pontos):
+
+        x, y = sistema.para_tela(
+            ponto.x,
+            ponto.y
+        )
+
+        if x >= LARGURA_MENU:
+
+            pygame.draw.circle(
+                tela,
+                cor,
+                (x, y),
+                4
+            )
+
+            rotulo = f"P{i + 1}'" if com_apostrofo else f"P{i + 1}"
+
+            desenhar_texto(
+                rotulo,
+                x + 8,
+                y - 10,
+                fonte_pequena,
+                cor
+            )
+
+
+def desenhar_legenda_poligonos():
+    """
+    Desenha, no canto superior direito da área de desenho, a
+    legenda de cores explicando o quadrilátero original e o
+    quadrilátero transformado.
+    """
+
+    x_legenda = LARGURA - 210
+    y_legenda = 10
+
+    pygame.draw.rect(
+        tela,
+        AZUL,
+        (x_legenda, y_legenda, 14, 14)
+    )
+
+    desenhar_texto(
+        "Original",
+        x_legenda + 20,
+        y_legenda - 2,
+        fonte_pequena,
+        PRETO
+    )
+
+    pygame.draw.rect(
+        tela,
+        LARANJA,
+        (x_legenda, y_legenda + 22, 14, 14)
+    )
+
+    desenhar_texto(
+        "Transformado (P')",
+        x_legenda + 20,
+        y_legenda + 20,
+        fonte_pequena,
+        PRETO
+    )
 
 
 # ============================================================
@@ -696,6 +1004,30 @@ while rodando:
 
 
                 # ---------------------------------------------
+                # PIVÔ: ORIGEM
+                # ---------------------------------------------
+
+                elif botao_pivot_origem.collidepoint(
+                    x_mouse,
+                    y_mouse
+                ):
+
+                    selecionar_pivot("origem")
+
+
+                # ---------------------------------------------
+                # PIVÔ: CENTROIDE
+                # ---------------------------------------------
+
+                elif botao_pivot_centroide.collidepoint(
+                    x_mouse,
+                    y_mouse
+                ):
+
+                    selecionar_pivot("centroide")
+
+
+                # ---------------------------------------------
                 # CAMPO SX
                 # ---------------------------------------------
 
@@ -720,15 +1052,27 @@ while rodando:
 
 
                 # ---------------------------------------------
-                # APLICAR ESCALA
+                # CAMPO ÂNGULO
                 # ---------------------------------------------
 
-                elif botao_escala.collidepoint(
+                elif campo_angulo_rect.collidepoint(
                     x_mouse,
                     y_mouse
                 ):
 
-                    aplicar_escala()
+                    campo_ativo = "angulo"
+
+
+                # ---------------------------------------------
+                # APLICAR TRANSFORMAÇÃO (ESCALA + ROTAÇÃO)
+                # ---------------------------------------------
+
+                elif botao_transformar.collidepoint(
+                    x_mouse,
+                    y_mouse
+                ):
+
+                    aplicar_transformacao()
 
 
             # =================================================
@@ -845,11 +1189,35 @@ while rodando:
                     campo_sy += evento.unicode
 
 
+            # =================================================
+            # CAMPO ÂNGULO
+            # =================================================
+
+            elif campo_ativo == "angulo":
+
+                if evento.key == pygame.K_BACKSPACE:
+
+                    campo_angulo = campo_angulo[:-1]
+
+                elif evento.key == pygame.K_RETURN:
+
+                    campo_ativo = None
+
+                elif (
+                    evento.unicode.isdigit()
+                    or evento.unicode in ".-"
+                ):
+
+                    campo_angulo += evento.unicode
+
+
     # ========================================================
     # DESENHO
     # ========================================================
 
     tela.fill(BRANCO)
+
+    desenhar_plano_cartesiano()
 
     desenhar_menu()
 
@@ -857,24 +1225,53 @@ while rodando:
 
 
     # ========================================================
-    # QUADRILÁTERO
+    # QUADRILÁTERO(S)
     # ========================================================
+    #
+    # O quadrilátero original (criado a partir dos 4 pontos
+    # informados) permanece sempre visível. Se alguma
+    # transformação (escala/rotação) já foi aplicada, o
+    # quadrilátero transformado também é desenhado, com cor e
+    # rótulos de vértice (P1', P2', P3', P4') diferentes, para
+    # que os dois fiquem visíveis ao mesmo tempo.
 
-    if quadrilatero is not None:
+    if quadrilatero_original is not None:
 
-        # Preenchimento
         rasterizador.preencher_quadrilatero(
             tela,
-            quadrilatero,
+            quadrilatero_original,
             AZUL
         )
 
-        # Bordas
+        rasterizador.desenhar_quadrilatero(
+            tela,
+            quadrilatero_original,
+            PRETO
+        )
+
+    if quadrilatero is not None and houve_transformacao:
+
+        rasterizador.preencher_quadrilatero(
+            tela,
+            quadrilatero,
+            LARANJA,
+            alpha=OPACIDADE_TRANSFORMADO
+        )
+
         rasterizador.desenhar_quadrilatero(
             tela,
             quadrilatero,
-            PRETO
+            VERDE_ESCURO,
+            alpha=OPACIDADE_TRANSFORMADO
         )
+
+        desenhar_vertices_quadrilatero(
+            quadrilatero,
+            VERDE_ESCURO,
+            com_apostrofo=True
+        )
+
+        desenhar_legenda_poligonos()
 
 
     # ========================================================
