@@ -4,6 +4,7 @@ from modelos.ponto import Ponto
 from modelos.quadrilatero import Quadrilatero
 from modelos.sistema_coordenadas import SistemaCoordenadas
 from algoritmos.rasterizador import Rasterizador
+from modelos.validacao import quadrilatero_valido
 
 
 pygame.init()
@@ -86,11 +87,19 @@ while rodando:
 
                     if len(pontos_selecionados) == 4:
 
-                        quadrilatero = Quadrilatero(
-                            pontos_selecionados
-                        )
+                        if quadrilatero_valido(pontos_selecionados):
 
-                        print("Quadrilátero criado!")
+                            quadrilatero = Quadrilatero(
+                                pontos_selecionados
+                            )
+
+                            print("Quadrilátero válido criado!")
+
+                        else:
+
+                            print("Quadrilátero inválido!")
+
+                            pontos_selecionados.clear()
 
 
     # --------------------------
