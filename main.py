@@ -8,61 +8,148 @@ from algoritmos.rasterizador import Rasterizador
 
 pygame.init()
 
-LARGURA = 600
+# ==========================
+# CONFIGURAÇÕES
+# ==========================
+
+LARGURA = 900
 ALTURA = 600
+ESCALA = 2
 
 tela = pygame.display.set_mode((LARGURA, ALTURA))
 pygame.display.set_caption("Rasterizador 2D")
 
-sistema = SistemaCoordenadas(LARGURA, ALTURA, escala=1)
+sistema = SistemaCoordenadas(
+    LARGURA,
+    ALTURA,
+    ESCALA
+)
+
 rasterizador = Rasterizador(sistema)
 
 
-# Quadrilátero em coordenadas cartesianas
-p1 = Ponto(20, 15)
-p2 = Ponto(30, 15)
-p3 = Ponto(35, 25)
-p4 = Ponto(5, 25)
+# ==========================
+# VARIÁVEIS
+# ==========================
 
-quadrilatero = Quadrilatero([
-    p1,
-    p2,
-    p3,
-    p4
-])
-
+pontos_selecionados = []
+quadrilatero = None
 
 rodando = True
 
+
+# ==========================
+# LOOP PRINCIPAL
+# ==========================
+
 while rodando:
+
+    # --------------------------
+    # EVENTOS
+    # --------------------------
 
     for evento in pygame.event.get():
 
         if evento.type == pygame.QUIT:
             rodando = False
 
-    # Limpa a tela
+        # Clique esquerdo
+        if evento.type == pygame.MOUSEBUTTONDOWN:
+
+            if evento.button == 1:
+
+                # Só permite selecionar 4 pontos
+                if len(pontos_selecionados) < 4:
+
+                    x, y = evento.pos
+
+                    # Converte pixel da tela
+                    # para coordenada do sistema
+                    x, y = sistema.para_cartesiana(
+                        x,
+                        y
+                    )
+
+                    ponto = Ponto(x, y)
+
+                    pontos_selecionados.append(ponto)
+
+                    print(
+                        f"P{len(pontos_selecionados)}: "
+                        f"({x}, {y})"
+                    )
+
+                    # Quando tiver 4 pontos,
+                    # cria o quadrilátero
+                    if len(pontos_selecionados) == 4:
+
+                        quadrilatero = Quadrilatero(
+                            pontos_selecionados
+                        )
+
+                        print("Quadrilátero criado!")
+
+
+    # --------------------------
+    # LIMPA A TELA
+    # --------------------------
+
     tela.fill((255, 255, 255))
 
-    # ==========================
-    # PLANO CARTESIANO
-    # ==========================
 
-    # ==========================
-    # QUADRILÁTERO
-    # ==========================
+    # --------------------------
+    # MOSTRA OS PONTOS CLICADOS
+    # --------------------------
 
-    rasterizador.preencher_quadrilatero(
-        tela,
-        quadrilatero,
-        (50, 150, 255)
-    )
+    for ponto in pontos_selecionados:
 
-    rasterizador.desenhar_quadrilatero(
-        tela,
-        quadrilatero,
-        (0, 0, 0)
-    )
+        x, y = sistema.para_tela(
+            ponto.x,
+            ponto.y
+        )
+
+        # Pequeno quadrado apenas para
+        # visualizar o ponto selecionado
+        for dx in range(-2, 3):
+            for dy in range(-2, 3):
+
+                px = x + dx
+                py = y + dy
+
+                if (
+                    0 <= px < LARGURA
+                    and 0 <= py < ALTURA
+                ):
+                    tela.set_at(
+                        (px, py),
+                        (255, 0, 0)
+                    )
+
+
+    # --------------------------
+    # DESENHA QUADRILÁTERO
+    # --------------------------
+
+    if quadrilatero is not None:
+
+        # Preenchimento
+        rasterizador.preencher_quadrilatero(
+            tela,
+            quadrilatero,
+            (50, 150, 255)
+        )
+
+        # Bordas
+        rasterizador.desenhar_quadrilatero(
+            tela,
+            quadrilatero,
+            (0, 0, 0)
+        )
+
+
+    # --------------------------
+    # ATUALIZA A TELA
+    # --------------------------
 
     pygame.display.flip()
 
