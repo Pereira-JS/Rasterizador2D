@@ -8,8 +8,8 @@ from algoritmos.rasterizador import Rasterizador
 
 pygame.init()
 
-LARGURA = 900
-ALTURA = 900
+LARGURA = 600
+ALTURA = 600
 
 tela = pygame.display.set_mode((LARGURA, ALTURA))
 pygame.display.set_caption("Rasterizador 2D")
