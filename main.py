@@ -1,27 +1,39 @@
 import pygame
 
-
-
-# classes do projeto
 from modelos.ponto import Ponto
 from modelos.quadrilatero import Quadrilatero
-from algoritmos.bresenham import bresenham
+from modelos.sistema_coordenadas import SistemaCoordenadas
+from algoritmos.rasterizador import Rasterizador
+
 
 pygame.init()
 
-tela = pygame.display.set_mode((900, 600))
+LARGURA = 900
+ALTURA = 900
+
+tela = pygame.display.set_mode((LARGURA, ALTURA))
 pygame.display.set_caption("Rasterizador 2D")
 
+sistema = SistemaCoordenadas(LARGURA, ALTURA, escala=1)
+rasterizador = Rasterizador(sistema)
 
-p1 = Ponto(100, 100)
-p2 = Ponto(500, 400)
 
-pontos = bresenham(p1, p2)
+# Quadrilátero em coordenadas cartesianas
+p1 = Ponto(20, 15)
+p2 = Ponto(30, 15)
+p3 = Ponto(35, 25)
+p4 = Ponto(5, 25)
 
-for x, y in pontos:
-    tela.set_at((x, y), (255, 255, 255))
+quadrilatero = Quadrilatero([
+    p1,
+    p2,
+    p3,
+    p4
+])
+
 
 rodando = True
+
 while rodando:
 
     for evento in pygame.event.get():
@@ -29,14 +41,30 @@ while rodando:
         if evento.type == pygame.QUIT:
             rodando = False
 
-        # eventos de mouse
-        # eventos de teclado
-        # etc.
+    # Limpa a tela
+    tela.fill((255, 255, 255))
 
-    # atualizar objetos
-    # rasterizar
-    # desenhar na tela
+    # ==========================
+    # PLANO CARTESIANO
+    # ==========================
+
+    # ==========================
+    # QUADRILÁTERO
+    # ==========================
+
+    rasterizador.preencher_quadrilatero(
+        tela,
+        quadrilatero,
+        (50, 150, 255)
+    )
+
+    rasterizador.desenhar_quadrilatero(
+        tela,
+        quadrilatero,
+        (0, 0, 0)
+    )
 
     pygame.display.flip()
+
 
 pygame.quit()
